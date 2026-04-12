@@ -1,7 +1,7 @@
 const express = require("express");
 const Router = express.Router();
 
-const posts = require("../data/posts");
+const posts = require("../data/questions");
 
 // GET /api/posts
 // List all posts (with optional search)
@@ -38,7 +38,7 @@ module.exports = router;
 const express = require("express");
 const router = express.Router();
 
-const posts = require("../data/posts");
+const posts = require("../data/questions");
 
 
 // GET /api/posts (search)

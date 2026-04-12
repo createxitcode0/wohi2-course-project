@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
 
-const postsRouter = require("./routes/posts"); 
+const postsRouter = require("./routes/questions"); 
 
 app.use(express.json());
 
