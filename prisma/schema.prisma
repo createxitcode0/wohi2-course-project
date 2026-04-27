@@ -13,6 +13,9 @@ model Question {
   answer   String
   keywords Keyword[]
 
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
+
   @@map("questions")
 }
 
@@ -22,4 +25,13 @@ model Keyword {
   questions Question[]
 
   @@map("keywords")
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  email     String     @unique @db.VarChar(255)
+  password  String     @db.VarChar(255)
+  name      String     @db.VarChar(100)
+
+  questions Question[]
 }
