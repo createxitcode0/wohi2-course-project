@@ -17,6 +17,9 @@ model Question {
   user   User? @relation(fields: [userId], references: [id])
 
   @@map("questions")
+  likes Like[]
+  attempts Attempt[]
+  imageUrl String? @db.VarChar(255)
 }
 
 model Keyword {
@@ -34,4 +37,37 @@ model User {
   name      String     @db.VarChar(100)
 
   questions Question[]
+  likes Like[]
+  attempts Attempt[]
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+
+  @@map("likes")
+}
+
+model Attempt {
+  id              Int      @id @default(autoincrement())
+  createdAt       DateTime @default(now())
+
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id])
+
+  questionId      Int
+  question        Question @relation(fields: [questionId], references: [id])
+
+  submittedAnswer String
+  correct         Boolean
+
+  @@map("attempts")
 }
