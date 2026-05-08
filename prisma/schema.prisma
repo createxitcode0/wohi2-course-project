@@ -8,18 +8,19 @@ datasource db {
 }
 
 model Question {
-  id       Int       @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
   question String
-  answer   String
-  keywords Keyword[]
+  answer   String  @db.Text
+  imageUrl String? @db.VarChar(255)
 
   userId Int?
   user   User? @relation(fields: [userId], references: [id])
 
-  @@map("questions")
-  likes Like[]
+  keywords Keyword[]
+  likes    Like[]
   attempts Attempt[]
-  imageUrl String? @db.VarChar(255)
+
+  @@map("questions")
 }
 
 model Keyword {
@@ -31,37 +32,38 @@ model Keyword {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  email     String     @unique @db.VarChar(255)
-  password  String     @db.VarChar(255)
-  name      String     @db.VarChar(100)
+  id       Int    @id @default(autoincrement())
+  email    String @unique @db.VarChar(255)
+  password String @db.VarChar(255)
+  name     String @db.VarChar(100)
 
   questions Question[]
-  likes Like[]
-  attempts Attempt[]
+  likes     Like[]
+  attempts  Attempt[]
+
+  @@map("users")
 }
 
 model Like {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
 
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
 
   questionId Int
   question   Question @relation(fields: [questionId], references: [id])
 
   @@unique([userId, questionId])
-
   @@map("likes")
 }
 
 model Attempt {
-  id              Int      @id @default(autoincrement())
-  createdAt       DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
 
-  userId          Int
-  user            User     @relation(fields: [userId], references: [id])
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id])
 
   questionId      Int
   question        Question @relation(fields: [questionId], references: [id])
