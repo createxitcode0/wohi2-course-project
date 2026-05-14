@@ -1,29 +1,17 @@
-const express = require("express");
-const path = require("path");
-const app = express();
-const multer = require("multer");
+const app = require("./app");
+const logger = require("./lib/logger");
+const prisma = require("./lib/prisma");
 
-const questionsRouter = require("./routes/questions");
-const authRouter = require("./routes/auth");
+const PORT = process.env.PORT || 3001;
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "..", "public")));
-
-app.use("/api/questions", questionsRouter);
-app.use("/api/auth", authRouter);
-
-app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError || err?.message === "Only image files are allowed") {
-    return res.status(400).json({ msg: err.message });
-  }
-  next(err);
+const server = app.listen(PORT, () => {
+  logger.info({ port: PORT }, "server listening");
 });
 
-app.use((req, res) => {
-  res.status(404).json({ msg: "Not found" });
-});
+async function shutdown() {
+  await prisma.$disconnect();
+  server.close(() => process.exit(0));
+}
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
