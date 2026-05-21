@@ -7,11 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Difficulty {
+  easy
+  medium
+  hard
+}
+
 model Question {
-  id       Int     @id @default(autoincrement())
-  question String
-  answer   String  @db.Text
-  imageUrl String? @db.VarChar(255)
+  id         Int        @id @default(autoincrement())
+  question   String
+  answer     String     @db.Text
+  imageUrl   String?    @db.VarChar(255)
+  difficulty Difficulty @default(medium)
 
   userId Int?
   user   User? @relation(fields: [userId], references: [id])

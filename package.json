@@ -7,7 +7,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:setup": "cross-env DATABASE_URL=mysql://root:Wymk0922115$@localhost:3306/quiz_test npx prisma migrate deploy",
-    "test:coverage":"vitest run --coverage"
+    "test:coverage": "vitest run --coverage"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -20,6 +20,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.3",
     "express": "^4.22.1",
     "pino": "^10.3.1",

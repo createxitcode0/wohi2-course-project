@@ -24,6 +24,9 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ message: "Invalid JSON in request body" });
   }
 
+  console.error("Unhandled error:", err);
+  res.status(500).json({ message: "Internal server error" });
+
   res.status(500).json({ message: "Internal server error" });
 }
 

@@ -1,0 +1,7 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+startCommand = "npx prisma migrate deploy && node src/index.js"
+healthcheckPath = "/api/health"
+restartPolicyType = "on_failure"

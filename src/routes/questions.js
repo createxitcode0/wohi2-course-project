@@ -7,11 +7,16 @@ const authenticate = require("../middleware/auth");
 const isOwner = require("../middleware/isOwner");
 const upload = require("../middleware/upload");
 const { NotFoundError, ValidationError } = require("../lib/errors");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const VALID_DIFFICULTIES = ["easy", "medium", "hard"];
 
 const QuestionInput = z.object({
   question: z.string().min(1),
   answer: z.string().min(1),
   keywords: z.union([z.string(), z.array(z.string())]).optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]).optional(),
 });
 
 function parseKeywords(keywords) {
@@ -49,14 +54,18 @@ const questionInclude = (userId) => ({
 /* GET /api/questions */
 router.get("/", authenticate, async (req, res, next) => {
   try {
-    const { keyword } = req.query;
+    const { keyword, difficulty } = req.query;
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 5));
     const skip = (page - 1) * limit;
 
-    const where = keyword
-      ? { keywords: { some: { name: keyword.toLowerCase() } } }
-      : {};
+    const where = {};
+    if (keyword) {
+      where.keywords = { some: { name: keyword.toLowerCase() } };
+    }
+    if (difficulty && VALID_DIFFICULTIES.includes(difficulty)) {
+      where.difficulty = difficulty;
+    }
 
     const [questions, total] = await Promise.all([
       prisma.question.findMany({
@@ -76,6 +85,116 @@ router.get("/", authenticate, async (req, res, next) => {
       total,
       totalPages: Math.ceil(total / limit),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* GET /api/questions/leaderboard */
+router.get("/leaderboard", authenticate, async (req, res, next) => {
+  try {
+    const leaderboard = await prisma.attempt.groupBy({
+      by: ["userId"],
+      where: { correct: true },
+      _count: { correct: true },
+      orderBy: { _count: { correct: "desc" } },
+      take: 5,
+    });
+
+    const userIds = leaderboard.map((entry) => entry.userId);
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true },
+    });
+
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
+
+    const result = leaderboard.map((entry, index) => ({
+      rank: index + 1,
+      userId: entry.userId,
+      name: userMap[entry.userId] || "Unknown",
+      correctAnswers: entry._count.correct,
+    }));
+
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* GET /api/questions/quiz/random */
+router.get("/quiz/random", authenticate, async (req, res, next) => {
+  try {
+    const { difficulty } = req.query;
+
+    const where = {};
+    if (difficulty && VALID_DIFFICULTIES.includes(difficulty)) {
+      where.difficulty = difficulty;
+    }
+
+    const total = await prisma.question.count({ where });
+    const skip = Math.max(0, Math.floor(Math.random() * Math.max(1, total - 10)));
+
+    const questions = await prisma.question.findMany({
+      where,
+      include: questionInclude(req.user.userId),
+      take: 10,
+      skip,
+      orderBy: { id: "asc" },
+    });
+
+    res.json({ data: questions.map(formatQuestion) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* POST /api/questions/generate */
+router.post("/generate", authenticate, async (req, res, next) => {
+  try {
+    const { topic, difficulty = "medium", count = 5 } = req.body;
+
+    if (!topic) throw new ValidationError("topic is required");
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    const prompt = `Generate ${count} quiz questions about "${topic}" with difficulty level "${difficulty}".
+Return ONLY a JSON array with no markdown, no backticks, no explanation.
+Each object must have exactly these fields:
+- "question": string
+- "answer": string
+- "keywords": array of strings
+- "difficulty": "${difficulty}"
+
+Example format:
+[{"question":"...","answer":"...","keywords":["..."],"difficulty":"${difficulty}"}]`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const clean = text.replace(/```json|```/g, "").trim();
+    const generated = JSON.parse(clean);
+
+    const saved = await Promise.all(
+      generated.map((q) =>
+        prisma.question.create({
+          data: {
+            question: q.question,
+            answer: q.answer,
+            difficulty: q.difficulty ?? difficulty,
+            userId: req.user.userId,
+            keywords: {
+              connectOrCreate: (q.keywords || []).map((kw) => ({
+                where: { name: kw.toLowerCase() },
+                create: { name: kw.toLowerCase() },
+              })),
+            },
+          },
+          include: questionInclude(req.user.userId),
+        })
+      )
+    );
+
+    res.status(201).json({ data: saved.map(formatQuestion) });
   } catch (err) {
     next(err);
   }
@@ -113,6 +232,7 @@ router.post("/", authenticate, upload.single("image"), async (req, res, next) =>
         question: data.question,
         answer: data.answer,
         imageUrl,
+        difficulty: data.difficulty ?? "medium",
         userId: req.user.userId,
         keywords: {
           connectOrCreate: keywordsArray.map((kw) => ({
@@ -148,6 +268,10 @@ router.put("/:questionId", authenticate, upload.single("image"), isOwner, async 
         })),
       },
     };
+
+    if (data.difficulty) {
+      updateData.difficulty = data.difficulty;
+    }
 
     if (req.file) {
       updateData.imageUrl = `/uploads/${req.file.filename}`;
