@@ -7,8 +7,7 @@ const authenticate = require("../middleware/auth");
 const isOwner = require("../middleware/isOwner");
 const upload = require("../middleware/upload");
 const { NotFoundError, ValidationError } = require("../lib/errors");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 
 const VALID_DIFFICULTIES = ["easy", "medium", "hard"];
 
@@ -149,56 +148,7 @@ router.get("/quiz/random", authenticate, async (req, res, next) => {
   }
 });
 
-/* POST /api/questions/generate */
-router.post("/generate", authenticate, async (req, res, next) => {
-  try {
-    const { topic, difficulty = "medium", count = 5 } = req.body;
 
-    if (!topic) throw new ValidationError("topic is required");
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-    const prompt = `Generate ${count} quiz questions about "${topic}" with difficulty level "${difficulty}".
-Return ONLY a JSON array with no markdown, no backticks, no explanation.
-Each object must have exactly these fields:
-- "question": string
-- "answer": string
-- "keywords": array of strings
-- "difficulty": "${difficulty}"
-
-Example format:
-[{"question":"...","answer":"...","keywords":["..."],"difficulty":"${difficulty}"}]`;
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().trim();
-    const clean = text.replace(/```json|```/g, "").trim();
-    const generated = JSON.parse(clean);
-
-    const saved = await Promise.all(
-      generated.map((q) =>
-        prisma.question.create({
-          data: {
-            question: q.question,
-            answer: q.answer,
-            difficulty: q.difficulty ?? difficulty,
-            userId: req.user.userId,
-            keywords: {
-              connectOrCreate: (q.keywords || []).map((kw) => ({
-                where: { name: kw.toLowerCase() },
-                create: { name: kw.toLowerCase() },
-              })),
-            },
-          },
-          include: questionInclude(req.user.userId),
-        })
-      )
-    );
-
-    res.status(201).json({ data: saved.map(formatQuestion) });
-  } catch (err) {
-    next(err);
-  }
-});
 
 /* GET /api/questions/:questionId */
 router.get("/:questionId", authenticate, async (req, res, next) => {
