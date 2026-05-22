@@ -9,6 +9,6 @@ COPY prisma ./prisma
 COPY src ./src
 COPY public ./public
 
-EXPOSE 3001
+EXPOSE 8080
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node src/index.js"]
