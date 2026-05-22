@@ -11,4 +11,4 @@ COPY public ./public
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/index.js 2>&1"]
+CMD ["node", "src/index.js"]
