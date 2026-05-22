@@ -1,9 +1,3 @@
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err);
-  process.exit(1);
-});
-console.log("Starting server...");
-
 
 const app = require("./app");
 const logger = require("./lib/logger");
