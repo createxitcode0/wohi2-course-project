@@ -7,6 +7,7 @@ const authenticate = require("../middleware/auth");
 const isOwner = require("../middleware/isOwner");
 const upload = require("../middleware/upload");
 const { NotFoundError, ValidationError } = require("../lib/errors");
+const Groq = require("groq-sdk");
 
 
 const VALID_DIFFICULTIES = ["easy", "medium", "hard"];
@@ -320,6 +321,60 @@ router.post("/:questionId/play", authenticate, async (req, res, next) => {
       correctAnswer: question.answer,
       createdAt: attempt.createdAt,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* POST /api/questions/generate */
+router.post("/generate", authenticate, async (req, res, next) => {
+  try {
+    const { topic, difficulty = "medium", count = 5 } = req.body;
+
+    if (!topic) throw new ValidationError("topic is required");
+
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    const prompt = `Generate ${count} quiz questions about "${topic}" with difficulty level "${difficulty}".
+    Return ONLY a JSON array with no markdown, no backticks, no explanation.
+    Each object must have exactly these fields:
+   - "question": string
+   - "answer": string
+   - "keywords": array of strings
+   - "difficulty": "${difficulty}"
+
+    Example format:
+    [{"question":"...","answer":"...","keywords":["..."],"difficulty":"${difficulty}"}]`;
+
+    const completion = await groq.chat.completions.create({
+     messages: [{ role: "user", content: prompt }],
+     model: "llama-3.3-70b-versatile",
+    });
+    const text = completion.choices[0].message.content.trim();
+    const clean = text.replace(/```json|```/g, "").trim();
+    const generated = JSON.parse(clean);
+
+    const saved = await Promise.all(
+      generated.map((q) =>
+        prisma.question.create({
+          data: {
+            question: q.question,
+            answer: q.answer,
+            difficulty: q.difficulty ?? difficulty,
+            userId: req.user.userId,
+            keywords: {
+              connectOrCreate: (q.keywords || []).map((kw) => ({
+                where: { name: kw.toLowerCase() },
+                create: { name: kw.toLowerCase() },
+              })),
+            },
+          },
+          include: questionInclude(req.user.userId),
+        })
+      )
+    );
+
+    res.status(201).json({ data: saved.map(formatQuestion) });
   } catch (err) {
     next(err);
   }
